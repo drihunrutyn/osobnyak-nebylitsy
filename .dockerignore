@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+**/node_modules
+**/dist
+**/dist-electron
+**/.turbo
+**/.cache
+**/.DS_Store
+**/*.db
+**/*.sqlite
+qa
+*.log
+*.tgz
