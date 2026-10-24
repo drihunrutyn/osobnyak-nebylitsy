@@ -37,7 +37,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # local-only development notes and QA artifacts; never deploy with source
 qa/
-.runable/
+.runable/*
+!.runable/ports.json
 task.md
 
 # IntelliJ based IDEs
