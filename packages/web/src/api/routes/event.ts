@@ -44,38 +44,13 @@ export const event = {
   }),
   role: withVisitor
     .input(z.object({ role: z.enum(ROLE_NAMES), selected: z.boolean() }))
-    .handler(async ({ context, input }) => {
-      if (input.selected)
-        await db
-          .insert(s.roleClaims)
-          .values({ visitorId: context.visitorId, role: input.role, createdAt: Date.now() })
-          .onConflictDoNothing();
-      else
-        await db
-          .delete(s.roleClaims)
-          .where(
-            and(eq(s.roleClaims.visitorId, context.visitorId), eq(s.roleClaims.role, input.role)),
-          );
-      return { saved: true };
+    .handler(() => {
+      throw new ORPCError("BAD_REQUEST", { message: "Обновите страницу: теперь роли выбираются только с именем в анкете участия." });
     }),
   supply: withVisitor
     .input(z.object({ item: z.number().int().min(0).max(9), selected: z.boolean() }))
-    .handler(async ({ context, input }) => {
-      if (input.selected)
-        await db
-          .insert(s.supplyClaims)
-          .values({ visitorId: context.visitorId, item: input.item, createdAt: Date.now() })
-          .onConflictDoNothing();
-      else
-        await db
-          .delete(s.supplyClaims)
-          .where(
-            and(
-              eq(s.supplyClaims.visitorId, context.visitorId),
-              eq(s.supplyClaims.item, input.item),
-            ),
-          );
-      return { saved: true };
+    .handler(() => {
+      throw new ORPCError("BAD_REQUEST", { message: "Обновите страницу: реквизит выбирается только с именем в анкете участия." });
     }),
   comment: withVisitor
     .input(z.object({ text: z.string().trim().min(1).max(600) }))

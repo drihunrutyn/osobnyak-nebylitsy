@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAdminSession, useAdminStats, useAdminLogin, useAdminLogout } from "../queries/admin";
 import { supplies } from "./content";
+import { RosterAdmin } from "../components/roster-admin";
 import type { RouterOutputs } from "@orpc/server";
 import type { AppRouter } from "../../api";
 
@@ -261,6 +262,7 @@ function Dashboard({ name }: { name: string }) {
           <a href="#admin-participation">
             <Users size={17} /> Участники и роли
           </a>
+          <a href="#admin-roster"><Users size={17} /> Анкеты / ответственные / бейджи</a>
           <a href="#admin-supplies">
             <Package size={17} /> Реквизит
           </a>
@@ -363,6 +365,7 @@ function Dashboard({ name }: { name: string }) {
           Часовой пояс — Москва. Автообновление каждые 30 секунд.{" "}
           {data && <>Данные на {date(data.refreshedAt)}.</>}
         </p>
+        <RosterAdmin from={range.from} to={range.to} />
         {stats.isPending && <div className="admin-loading">Открываем сейф аналитики…</div>}
         {stats.isError && (
           <div className="admin-error" role="alert">
@@ -474,8 +477,8 @@ function Dashboard({ name }: { name: string }) {
               </Panel>
             </div>
             <Panel
-              title="Кастинг проекта"
-              note="Текущие роли, выбранные в периоде"
+              title="История анонимного кастинга"
+              note="Прежние заявки без имён; новые — в блоке выше"
               id="admin-participation"
             >
               <div className="admin-table-wrap">
@@ -514,7 +517,7 @@ function Dashboard({ name }: { name: string }) {
               </div>
             </Panel>
             <Panel
-              title="Реквизит под контролем"
+              title="История анонимного реквизита"
               note={`${data.overview.supplyItems} из 10 видов обещано`}
               id="admin-supplies"
             >

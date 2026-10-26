@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useParticipation } from "../queries/event";
+import { useRoster } from "../queries/roster";
+import { ParticipantForm, PublicResponsibilities } from "../components/participant-form";
 import { useEventAnalytics } from "../hooks/use-event-analytics";
-import { type ROLE_NAMES } from "../../shared/event";
 import {
   ArrowUpRight,
   ArrowDown,
@@ -27,8 +28,6 @@ import {
   missions,
   zones,
   acts,
-  roles,
-  supplies,
   faqs,
 } from "./content";
 
@@ -114,13 +113,17 @@ export default function Landing() {
   const [mission, setMission] = useState(-1);
   const [flip, setFlip] = useState(false);
   const participation = useParticipation();
+  const roster = useRoster();
+  const rosterData = roster.state.data;
+  const roles = (rosterData?.entries ?? []).filter(e => e.kind === "role");
+  const supplies = (rosterData?.entries ?? []).filter(e => e.kind === "supply");
   const trackAction = useEventAnalytics();
   const data = participation.state.data;
-  const checked = data?.supplies ?? [];
+  const checked = rosterData?.claims.map(c => c.catalogId) ?? [];
   const votes = data?.votes ?? 0;
   const comments = data?.comments ?? [];
-  const selectedRoles = data?.roles ?? [];
-  const readyCount = data?.ready.length ?? 0;
+  const selectedRoles = checked;
+  const readyCount = supplies.filter(s => rosterData?.people.some(p => p.catalogId === s.id)).length;
   const unavailable = participation.state.isPending || participation.state.isError;
   const [complaint, setComplaint] = useState("");
   const [message, setMessage] = useState("");
@@ -131,15 +134,16 @@ export default function Landing() {
     try {
       await action;
       setMessage(success);
-    } catch {
-      setMessage("Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.");
     }
   }
-  function toggleRole(role: string, selected: boolean) {
-    if (unavailable || participation.role.isPending) return;
+  function toggleRole(role: number, selected: boolean) {
+    if (!rosterData?.profile) { setMessage("Сначала укажите имя в анкете ниже."); document.getElementById("participant-form")?.scrollIntoView({behavior:"smooth"}); return; }
+    if (roster.claim.isPending) return;
     void save(
-      participation.role.mutateAsync({ role: role as (typeof ROLE_NAMES)[number], selected }),
-      "Выбор роли сохранён в общем сейфе.",
+      roster.claim.mutateAsync({ catalogId: role, selected }),
+      "Заявка сохранена. Назначение утверждает администратор.",
     );
   }
   const galleryItems = [
@@ -501,8 +505,8 @@ export default function Landing() {
             </a>
           </div>
           <div className="roles-grid">
-            {roles.map(([name, costume, task], i) => (
-              <article key={name}>
+            {roles.map(({id, title: name, subtitle: costume, description: task}, i) => (
+              <article key={id}>
                 <span className="role-num">РОЛЬ 0{i + 1}</span>
                 <h3>{name}</h3>
                 <span className="costume">{costume}</span>
@@ -510,7 +514,7 @@ export default function Landing() {
                 <a
                   href="#vote"
                   onClick={() => {
-                    if (!selectedRoles.includes(name)) toggleRole(name, true);
+                    if (!selectedRoles.includes(id)) toggleRole(id, true);
                   }}
                 >
                   Хочу эту роль <ArrowUpRight size={15} />
@@ -518,6 +522,7 @@ export default function Landing() {
               </article>
             ))}
           </div>
+          <strong className="cleanup-banner">Все помогают в уборке!</strong>
         </section>
         <section id="code" className="section container reveal">
           <div className="code-frame">
@@ -667,7 +672,7 @@ export default function Landing() {
               <div className="supplies-counter">
                 <b>
                   {unavailable ? "—" : readyCount}
-                  <span> / 10</span>
+                  <span> / {supplies.length}</span>
                 </b>
                 <small>СОБРАНО ДЛЯ ПРОЕКТА</small>
               </div>
@@ -676,20 +681,21 @@ export default function Landing() {
               className="progress"
               aria-label="Собранный реквизит"
               value={readyCount}
-              max={10}
+              max={Math.max(1, supplies.length)}
             />
+            <p className="profile-note">Для выбора реквизита сначала <a className="text-link" href="#participant-form">сохраните имя</a>. Организатор увидит, кто что принесёт.</p>
             <div className="checklist">
-              {supplies.map((supply, i) => (
-                <label key={supply} className={checked.includes(i) ? "is-checked" : ""}>
+              {supplies.map(({title:supply, id:i}) => (
+                <label key={i} className={checked.includes(i) ? "is-checked" : ""}>
                   <input
                     type="checkbox"
                     aria-label={supply}
                     checked={checked.includes(i)}
-                    disabled={unavailable || participation.supply.isPending}
+                    disabled={roster.state.isPending || roster.state.isError || roster.claim.isPending || !rosterData?.profile}
                     onChange={() =>
                       void save(
-                        participation.supply.mutateAsync({
-                          item: i,
+                        roster.claim.mutateAsync({
+                          catalogId: i,
                           selected: !checked.includes(i),
                         }),
                         "Реквизит сохранён. Организаторы увидят вашу отметку.",
@@ -700,7 +706,7 @@ export default function Landing() {
                   <small>
                     {checked.includes(i)
                       ? "Я ПРИНЕСУ"
-                      : data?.ready.some((r) => r.item === i)
+                      : rosterData?.people.some((r) => r.catalogId === i)
                         ? "УЖЕ ОБЕЩАЛИ"
                         : "НУЖНО"}
                   </small>
@@ -827,6 +833,7 @@ export default function Landing() {
                     сообщить организаторам.
                   </output>
                 )}
+                <ParticipantForm />
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
@@ -872,27 +879,29 @@ export default function Landing() {
                   </div>
                 </form>
                 <fieldset>
-                  <legend>ХОЧУ РОЛЬ</legend>
+                  <legend>ХОЧУ РОЛЬ · УТВЕРЖДАЕТ ОРГАНИЗАТОР</legend>
+                  <p className="profile-note">{rosterData?.profile ? `Заявки от имени: ${rosterData.profile.name}` : "Сначала сохраните имя в анкете выше."}</p>
                   <div className="role-options">
-                    {roles.map(([role]) => (
-                      <label key={role}>
+                    {roles.map(({title:role,id}) => (
+                      <label key={id}>
                         <input
                           type="checkbox"
                           aria-label={role}
-                          checked={selectedRoles.includes(role)}
-                          disabled={unavailable || participation.role.isPending}
-                          onChange={() => toggleRole(role, !selectedRoles.includes(role))}
+                          checked={selectedRoles.includes(id)}
+                          disabled={roster.state.isPending || roster.state.isError || roster.claim.isPending || !rosterData?.profile}
+                          onChange={() => toggleRole(id, !selectedRoles.includes(id))}
                         />
-                        <span>{role}</span>
+                        <span>{role}{rosterData?.claims.find(c=>c.catalogId===id) && <small>{rosterData.claims.find(c=>c.catalogId===id)?.approved ? " · УТВЕРЖДЕНО" : " · ЗАЯВКА"}</small>}</span>
                       </label>
                     ))}
                   </div>
                 </fieldset>
+                <strong className="cleanup-banner">Все помогают в уборке!</strong>
                 <a href="#supplies" className="text-link">
                   Принесу реквизит — отметить в списке <ArrowUpRight size={16} />
                 </a>
                 <output className="form-status">
-                  {participation.role.isPending
+                  {roster.claim.isPending
                     ? "Сохраняем выбранную роль…"
                     : message ||
                       (selectedRoles.length
@@ -900,10 +909,10 @@ export default function Landing() {
                         : "Твой голос пока ждёт своего звёздного часа.")}
                 </output>
                 <p className="demo-disclaimer">
-                  Общий серверный сбор: один голос на браузер. Роли, реквизит и записки доступны
-                  организатору; чужие записки здесь не публикуются. Для статистики учитываются
-                  посещения и действия без имён. Уникальный браузер — не подтверждённый человек.
-                  Старое демо не перенесено.
+                  Голоса «ЗА» сохранены отдельно от именных анкет. Имя не проверяет личность:
+                  разные браузеры могут создать несколько анкет. Роли и реквизит выбираются с именем;
+                  администратор утверждает назначения и отдельно публикует список ответственных.
+                  Чужие записки и стаж не публикуются.
                 </p>
                 {participation.state.isPending && (
                   <p className="data-notice">Загружаем общий сейф…</p>
@@ -931,6 +940,7 @@ export default function Landing() {
             )}
           </div>
         </section>
+        <PublicResponsibilities />
         <section id="faq" className="section container reveal">
           <div className="faq-layout">
             <Heading number="11" tag="ВОПРОСЫ С ПЕРИМЕТРА">

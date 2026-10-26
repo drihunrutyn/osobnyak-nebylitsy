@@ -4,6 +4,7 @@ import { ping } from "./routes/ping";
 import { event } from "./routes/event";
 import { admin } from "./routes/admin";
 import { auth } from "./auth";
+import { roster, rosterAdmin } from "./routes/roster";
 
 // API features are oRPC procedures, one file per feature in ./routes/,
 // composed into this router — typed end-to-end via the clients
@@ -15,6 +16,8 @@ export const router = {
   ping,
   event,
   admin,
+  roster,
+  rosterAdmin,
 };
 
 export type AppRouter = typeof router;
