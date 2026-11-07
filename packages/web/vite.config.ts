@@ -6,6 +6,7 @@ import runableAnalyticsPlugin from "./vite/__plugins/runable-analytics-plugin";
 import honoDevPlugin from "./vite/__plugins/hono-dev-plugin";
 import assetOptimizerPlugin from "./vite/__plugins/asset-optimizer-plugin";
 import ports from "../../__ports.cjs";
+import pagesPlugin from "./vite/pages-plugin";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -13,7 +14,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "");
   Object.assign(process.env, env);
 
+  const pages = mode === "pages";
+  const base = pages ? "/osobnyak-nebylitsy/" : "/";
   return {
+    base,
+    build: { outDir: pages ? "dist-pages" : "dist" },
     // All env files live at the repo root — keep Vite's own env loading there too,
     // so packages/web/.env* files can never shadow the root .env.
     envDir: root,
@@ -23,6 +28,7 @@ export default defineConfig(({ mode }) => {
       runableAnalyticsPlugin(),
       tailwind(),
       assetOptimizerPlugin(),
+      ...(pages ? [pagesPlugin(base)] : []),
     ],
     resolve: {
       alias: {

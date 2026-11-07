@@ -4,6 +4,7 @@ node_modules
 # output
 out
 dist
+dist-pages
 dist-electron
 release
 web-build
